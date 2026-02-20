@@ -25,15 +25,12 @@
 /intensity_tumor_background_60keV_all_sizes.csv
 /intensity_tumor_background_60keV_all_sizes_small_samp.csv
 /intensity_tumor_background_60keV_all_sizes_talbot3.csv
-/intensity_tumor_background_60keV_all_sizes_talbot3_large_sizes.csv
-/intensity_tumor_background_60keV_all_sizes_talbot3_large_sizes_onlyabsorb.csv
 /intensity_tumor_background_60keV_all_sizes_talbot3_large_sizes_withabsorb.csv
 /intensity_tumor_background_60keV_test.csv
 /main.py
 /mean_tumor_vs_diameter.csv
 /mu_delta_vs_energy_absolute.png
 /mu_delta_vs_energy_relative.png
-/parameter.py
 /phi_tumor_2D.png
 /photons_vs_sdnr_three_signals_by_lesion.pdf
 /photons_vs_sdnr_three_signals_by_lesion_corrected.pdf
