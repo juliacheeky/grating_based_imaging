@@ -93,10 +93,7 @@ def compute_total_phase(phi_tumor,phi_no_tumor):
     total_phi_no_tumor = np.cumsum(phi_no_tumor, axis=-1)
     return total_phi_no_tumor, total_phi_tumor
 
-def for_all_photons_new(I_ref, I_tumor, I_no_tumor,photon_start, photon_end, num_noise_realizations):
-
-    photons = np.logspace(photon_start, photon_end, num=10, base=10.0, dtype=int)[:,np.newaxis]
-
+def for_all_photons_new(I_ref, I_tumor, I_no_tumor,photons, num_noise_realizations):
 
     I_ref_noisy = np.random.poisson(np.broadcast_to(I_ref*photons, (num_noise_realizations,... )))
     I_tumor_noisy = np.random.poisson(np.broadcast_to(I_tumor*photons, (num_noise_realizations,... )))
@@ -174,12 +171,11 @@ def calculate_cnr(tumor, no_tumor, d_sph):
 
 def calculate_cnr_whole_array(tumor, no_tumor, d_sph):
 
-    # Convert sphere diameter from micrometers to pixels
-    d_sph_segs = d_sph / segment_size_in_pix
+    d_sph_in_segs = d_sph / segment_size_in_pix
  
     arr_len = no_tumor.shape[-1]
-    start_idx = int((arr_len - d_sph_segs) / 2)
-    end_idx = int(start_idx + d_sph_segs)
+    start_idx = int((arr_len - d_sph_in_segs) / 2)
+    end_idx = int(start_idx + d_sph_in_segs)
     
     tumor_central = tumor[..., start_idx:end_idx]
     no_tumor_central = no_tumor[..., start_idx:end_idx]
@@ -198,75 +194,45 @@ def calculate_cnr_alter(tumor, no_tumor, d_sph):
     return cnr
 
 
-all_cnr_results = []
-
-for i in range(5):
-
-    phi_tumor_results, phi_no_tumor_results, mean_tumor_results, mean_no_tumor_results, total_phi_tumor_results, total_phi_no_tumor_results = for_all_photons(I_ref, I_tumor, I_no_tumor, photon_start=3, photon_end=10)
-    #print("phi tumor shape", np.array(phi_tumor_results).shape)
-    cnr = calculate_cnr_whole_array(total_phi_tumor_results, total_phi_no_tumor_results, d_sph)
-    #print(f"CNR for total phase: {cnr}")
-    all_cnr_results.append(cnr)
-print("all_cnr_results shape:", np.array(all_cnr_results).shape)
-mean_cnr_results = np.mean(np.array(all_cnr_results), axis=0)
-print(f"Mean CNR across iterations: {mean_cnr_results}")
-"""
-# Calculate mean CNR across iterations
-mean_cnr_results = np.mean(all_cnr_results, axis=0)
-std_cnr_results = np.std(all_cnr_results, axis=0)
-
-plt.plot(total_phi_no_tumor_results[0], label='Total Phase No Tumor')
-plt.plot(total_phi_tumor_results[0], label='Total Phase With Tumor')
-plt.xlabel('Pixel Index')
-plt.ylabel('Total Phase Difference')
-plt.legend()
-plt.show()
-"""
-"""
 
 d_sphss = [40,50,60,70,80,90,100,110,120,130,140,150,160,170,180,190,200]
-   
-# Photon range to evaluate (same as used above)
+
 photon_start = 3
 photon_end = 10
-photons_list = np.logspace(photon_start, photon_end, num=40, base=10.0, dtype=int)
+photons = np.logspace(photon_start, photon_end, num=40, base=10.0, dtype=int)
 
 # Container to store mean CNR for each sphere size (rows: sizes, cols: photon levels)
 results_matrix = []
 
+Intensities = pd.read_csv(data)
+I_ref = Intensities["I_ref"].to_numpy()
+I_no_tumor = Intensities["I_no_tumor"].to_numpy()
+I_no_tumor = I_no_tumor * np.exp(-mu_bkg_in_1_cm * additional_thickness_cm)
+
 for d_sph in d_sphss:
+
     col_name = f"{int(round(d_sph))}um"
-    I_tumor = pd.read_csv(data)[col_name].to_numpy()
-    I_ref = pd.read_csv(data)["I_ref"].to_numpy()
-    I_no_tumor = pd.read_csv(data)["I_no_tumor"].to_numpy()
+    I_tumor = Intensities[col_name].to_numpy()
     I_tumor = I_tumor * np.exp(-mu_bkg_in_1_cm * additional_thickness_cm)
-    I_no_tumor = I_no_tumor * np.exp(-mu_bkg_in_1_cm * additional_thickness_cm)
-    I_ref_2D, I_tumor_2D, I_no_tumor_2D = compute_intensity_2D_pixels(I_ref, I_tumor, I_no_tumor, d_sph)
-    all_cnr_results = []
-    # Repeat realizations to average out Poisson noise
-    for i in range(100):
-        cnr_results = []
-        phi_tumor_results, phi_no_tumor_results, mean_tumor_results, mean_no_tumor_results, total_phi_tumor_results, total_phi_no_tumor_results = \
-            for_all_photons(I_ref_2D, I_tumor_2D, I_no_tumor_2D, photon_start=photon_start, photon_end=photon_end)
+    
+    #I_ref_2D, I_tumor_2D, I_no_tumor_2D = compute_intensity_2D_pixels(I_ref, I_tumor, I_no_tumor, d_sph)
+    phi_tumor_results, phi_no_tumor_results, mean_tumor_results, mean_no_tumor_results, total_phi_tumor_results, total_phi_no_tumor_results = \
+        for_all_photons_new(I_ref, I_tumor, I_no_tumor, photons, num_noise_realizations=100)
+    cnr = calculate_cnr(total_phi_tumor_results, total_phi_no_tumor_results, d_sph)
+    mean_cnr = np.mean(cnr, axis=0) # dimensions (photons)
 
-        for tot_phi_tumor, tot_phi_no_tumor in zip(total_phi_tumor_results, total_phi_no_tumor_results):
-            cnr = calculate_cnr(tot_phi_tumor, tot_phi_no_tumor, d_sph)
-            cnr_results.append(cnr)
-
-        for mean_tumor, mean_no_tumor in zip(mean_tumor_results, mean_no_tumor_results):
-            cnr = calculate_cnr_alter(mean_tumor, mean_no_tumor, d_sph)
-            cnr_results.append(cnr)
-            
-        all_cnr_results.append(cnr_results)
-
-    mean_cnr = np.mean(all_cnr_results, axis=0)
-    std_cnr = np.std(all_cnr_results, axis=0)
-    results_matrix.append(mean_cnr)
-
-# Create DataFrame with photon counts as rows and sphere sizes as columns
-df = pd.DataFrame(np.array(results_matrix).T, index=photons_list, columns=[f"{int(d)}um" for d in d_sphss])
-output_csv = "cnr_vs_photons_mean_centre_section_12cm.csv"
-df.index.name = 'photons'
-df.to_csv(output_csv)
-print(f"Saved CNR results to {output_csv}")
-"""
+    if not os.path.exists(file_name):
+        # File does NOT exist — create it
+        results = pd.DataFrame({
+        "photons": photons_list,
+        f"SDNR_{int(round(d_sphe))}um": sdnr_total_phi_list
+        })
+        results.to_csv(file_name, index=False)
+    else:
+        # File exists — load and add new column
+        results = pd.read_csv(file_name)
+        
+        # Add new column (ensure lengths match)
+        results[f"SDNR_{int(round(d_sphe))}um"] = sdnr_total_phi_list
+        
+        results.to_csv(file_name, index=False)
