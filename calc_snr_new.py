@@ -13,7 +13,7 @@ additional_thickness_cm= 11.95
 mu_bkg_in_1_cm = xrl.CS_Total_CP(mat_bkg, E_in_keV) \
                                  * rho_bkg_in_g_cm3
 
-data  = "intensity_tumor_background_60keV_all_sizes_talbot3_large_sizes_onlyabsorb.csv"
+data  = "intensity_tumor_background_60keV_all_sizes_talbot3_large_sizes.csv"
 
 d_sph = 200
 col_name = f"{int(round(d_sph))}um"
@@ -63,7 +63,7 @@ def estimate_phi_mean_fourier_array(Iref, Isamp):
 
         return phis, means
 
-
+"""
 def estimate_phi_mean_fourier(Iref, Isamp):
         x_walk = np.arange(len(Iref))
         
@@ -94,7 +94,7 @@ def estimate_phi_mean_fourier(Iref, Isamp):
             phi_list.append(phase_samp - phase_ref)
 
         return np.array(phi_list), np.array(mean_list)
-
+"""
 def compute_total_phase(phi_tumor,phi_no_tumor):
     total_phi_tumor = np.cumsum(phi_tumor, axis=-1)
     total_phi_no_tumor = np.cumsum(phi_no_tumor, axis=-1)
@@ -116,7 +116,7 @@ def for_all_photons_new(I_ref, I_tumor, I_no_tumor,photons, num_noise_realizatio
 
 
 #Returns lists of phi, total phi and mean values for both tumor and no tumor cases for a range of photon counts
-def for_all_photons(I_ref, I_tumor, I_no_tumor,photon_start, photon_end):
+"""def for_all_photons(I_ref, I_tumor, I_no_tumor,photon_start, photon_end):
 
     photons_list = np.logspace(photon_start, photon_end, num=10, base=10.0, dtype=int)
 
@@ -148,7 +148,7 @@ def for_all_photons(I_ref, I_tumor, I_no_tumor,photon_start, photon_end):
         total_phi_tumor_results.append(total_phi_tumor)
 
     return np.array(phi_tumor_results), np.array(phi_no_tumor_results), np.array(mean_tumor_results), np.array(mean_no_tumor_results), np.array(total_phi_tumor_results), np.array(total_phi_no_tumor_results)
-
+"""
 def calculate_cnr(tumor, no_tumor, d_sph):
     """
     Calculate CNR for the central region containing the sphere.
@@ -203,8 +203,8 @@ def calculate_cnr_alter(tumor, no_tumor, d_sph):
 
 d_sphss = [40,50,60,70,80,90,100,110,120,130,140,150,160,170,180,190,200]
 
-photon_start = 3
-photon_end = 10
+photon_start = 2
+photon_end = 7
 photons = np.logspace(photon_start, photon_end, num=40, base=10.0, dtype=int)
 
 # Container to store mean CNR for each sphere size (rows: sizes, cols: photon levels)
@@ -224,7 +224,7 @@ for d_sph in d_sphss:
     #I_ref_2D, I_tumor_2D, I_no_tumor_2D = compute_intensity_2D_pixels(I_ref, I_tumor, I_no_tumor, d_sph)
     phi_tumor_results, phi_no_tumor_results, mean_tumor_results, mean_no_tumor_results, total_phi_tumor_results, total_phi_no_tumor_results = \
         for_all_photons_new(I_ref, I_tumor, I_no_tumor, photons, num_noise_realizations=100)
-    cnr = calculate_cnr(total_phi_tumor_results, total_phi_no_tumor_results, d_sph)
+    cnr = calculate_cnr_whole_array(total_phi_tumor_results, total_phi_no_tumor_results, d_sph)
     mean_cnr = np.mean(cnr, axis=0) # dimensions (photons)
 
     if not os.path.exists(file_name):
