@@ -107,7 +107,7 @@ def for_all_photons_new(I_ref, I_tumor, I_no_tumor,photon_start, photon_end, num
 
     total_phi_tumor = np.cumsum(phi_tumor, axis=-1)
     total_phi_no_tumor = np.cumsum(phi_no_tumor, axis=-1)
-
+    'phi_tumor dimention: (num_noise_realisations, num_photon_levels, num_segments)'
     return phi_tumor, phi_no_tumor, mean_tumor, mean_no_tumor, total_phi_tumor, total_phi_no_tumor
 
 
@@ -173,30 +173,20 @@ def calculate_cnr(tumor, no_tumor, d_sph):
     return cnr
 
 def calculate_cnr_whole_array(tumor, no_tumor, d_sph):
-    """
-    Calculate CNR for the central region containing the sphere.
-    
-    Parameters:
-    - phi_tumor: phase values with tumor
-    - phi_no_tumor: phase values without tumor
-    - d_sph: sphere diameter in micrometers
-    """
+
     # Convert sphere diameter from micrometers to pixels
-    d_sph_pix = d_sph / px_in_um
+    d_sph_segs = d_sph / segment_size_in_pix
+ 
+    arr_len = no_tumor.shape[-1]
+    start_idx = int((arr_len - d_sph_segs) / 2)
+    end_idx = int(start_idx + d_sph_segs)
     
-    # Extract central region
-    arr_len = no_tumor.shape[1]
-    print("array length", arr_len)
-    start_idx = int((arr_len - d_sph_pix) / 2)
-    end_idx = int(start_idx + d_sph_pix)
+    tumor_central = tumor[..., start_idx:end_idx]
+    no_tumor_central = no_tumor[..., start_idx:end_idx]
     
-    tumor_central = tumor[:, start_idx:end_idx]
-    print("tumor central", tumor_central.shape)
-    no_tumor_central = no_tumor[:, start_idx:end_idx]
-    
-    signal = np.abs(np.mean(tumor_central, axis=1) - np.mean(no_tumor_central, axis=1))
+    signal = np.abs(np.mean(tumor_central, axis=-1) - np.mean(no_tumor_central, axis=-1))
     print(f"Signal: {signal.shape}")
-    noise = np.std(no_tumor_central, axis=1)
+    noise = np.std(no_tumor_central, axis=-1)
     print(f"Noise: {noise}")
     cnr = signal / noise
     return cnr
