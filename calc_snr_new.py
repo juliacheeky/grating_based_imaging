@@ -39,18 +39,24 @@ def compute_intensity_2D_pixels(I_ref, I_tumor, I_no_tumor, d_sph_um):
 def estimate_phi_mean_fourier_array(Iref, Isamp):
         # Will only work like this if the segment size goes evenly into the total length of the array,
         #  which is the case for our data
-        N = Iref.shape[-1]
-        Iref_reshape = Iref.reshape(...,int(N/segment_size_in_pix), segment_size_in_pix)
-        Isamp_reshape = Isamp.reshape(...,int(N/segment_size_in_pix), segment_size_in_pix)
+        shape = Iref.shape
+        N = shape[-1]
+
+        
+        print("N", segment_size_in_pix)
+        Iref_reshape = Iref.reshape(shape[0],shape[1],int(N/segment_size_in_pix), segment_size_in_pix)
+        Isamp_reshape = Isamp.reshape(shape[0],shape[1],int(N/segment_size_in_pix), segment_size_in_pix)
         
         fourier_Isamp = np.fft.fft(Isamp_reshape, axis=-1)
         fourier_Iref = np.fft.fft(Iref_reshape, axis=-1)
-        k = int(N / (px_in_um*1e-6 / detector_pixel_size))
+        print("fourier shape", fourier_Isamp.shape)
+        k = int(segment_size_in_pix / (px_in_um*1e-6 / detector_pixel_size))
+        print("k", k)
         
-        mean_samp = fourier_Isamp[...,0].real / N
+        mean_samp = fourier_Isamp[...,0].real / segment_size_in_pix
         phase_samp = np.angle(fourier_Isamp[...,k])
         phase_ref = np.angle(fourier_Iref[...,k])
-        mean_ref = fourier_Iref[...,0].real / N
+        mean_ref = fourier_Iref[...,0].real / segment_size_in_pix
 
         means = mean_samp/mean_ref
         phis = phase_samp - phase_ref
