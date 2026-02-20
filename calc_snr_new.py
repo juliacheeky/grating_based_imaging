@@ -7,6 +7,7 @@ import xraylib as xrl
 
 hight_of_pixel_in_um = 217
 hight_of_pixel_in_pix = int(hight_of_pixel_in_um*1e-6 / detector_pixel_size)
+file_name = "cnr_results.csv"
 
 additional_thickness_cm= 11.95
 mu_bkg_in_1_cm = xrl.CS_Total_CP(mat_bkg, E_in_keV) \
@@ -194,7 +195,6 @@ def calculate_cnr_alter(tumor, no_tumor, d_sph):
     return cnr
 
 
-
 d_sphss = [40,50,60,70,80,90,100,110,120,130,140,150,160,170,180,190,200]
 
 photon_start = 3
@@ -224,8 +224,8 @@ for d_sph in d_sphss:
     if not os.path.exists(file_name):
         # File does NOT exist — create it
         results = pd.DataFrame({
-        "photons": photons_list,
-        f"SDNR_{int(round(d_sphe))}um": sdnr_total_phi_list
+        "photons": photons,
+        f"SDNR_{int(round(d_sph))}um": mean_cnr
         })
         results.to_csv(file_name, index=False)
     else:
@@ -233,6 +233,6 @@ for d_sph in d_sphss:
         results = pd.read_csv(file_name)
         
         # Add new column (ensure lengths match)
-        results[f"SDNR_{int(round(d_sphe))}um"] = sdnr_total_phi_list
+        results[f"SDNR_{int(round(d_sph))}um"] = mean_cnr
         
         results.to_csv(file_name, index=False)
