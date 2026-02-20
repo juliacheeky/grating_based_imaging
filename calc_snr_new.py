@@ -95,10 +95,10 @@ def compute_total_phase(phi_tumor,phi_no_tumor):
     return total_phi_no_tumor, total_phi_tumor
 
 def for_all_photons_new(I_ref, I_tumor, I_no_tumor,photons, num_noise_realizations):
-
-    I_ref_noisy = np.random.poisson(np.broadcast_to(I_ref*photons, (num_noise_realizations,... )))
-    I_tumor_noisy = np.random.poisson(np.broadcast_to(I_tumor*photons, (num_noise_realizations,... )))
-    I_no_tumor_noisy = np.random.poisson(np.broadcast_to(I_no_tumor*photons, (num_noise_realizations,... )))
+    photons_stacked = np.broadcast_to(photons[:, np.newaxis], (num_noise_realizations, len(photons), 1))
+    I_ref_noisy = np.random.poisson(I_ref*photons_stacked)
+    I_tumor_noisy = np.random.poisson(I_tumor*photons_stacked)
+    I_no_tumor_noisy = np.random.poisson(I_no_tumor*photons_stacked)
     
     phi_tumor, mean_tumor = estimate_phi_mean_fourier_array(I_ref_noisy, I_tumor_noisy)
     phi_no_tumor, mean_no_tumor = estimate_phi_mean_fourier_array(I_ref_noisy, I_no_tumor_noisy)
