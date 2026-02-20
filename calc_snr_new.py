@@ -14,8 +14,10 @@ mu_bkg_in_1_cm = xrl.CS_Total_CP(mat_bkg, E_in_keV) \
 
 data  = "intensity_tumor_background_60keV_all_sizes_talbot3_large_sizes_onlyabsorb.csv"
 
-d_sph = 100
+d_sph = 200
 col_name = f"{int(round(d_sph))}um"
+
+'I could read data all at once here'
 
 I_tumor = pd.read_csv(data)[col_name].to_numpy()
 I_ref = pd.read_csv(data)["I_ref"].to_numpy()
@@ -25,7 +27,7 @@ def compute_intensity_2D_pixels(I_ref, I_tumor, I_no_tumor, d_sph_um):
     d_sph_in_pix = int(d_sph_um*1e-6 / detector_pixel_size)
 
     I_ref_2D_pixel = I_ref
-    print("sphere diameter in pix",d_sph_in_pix)
+    #print("sphere diameter in pix",d_sph_in_pix)
 
     I_tumor_2D_pixel = (hight_of_pixel_in_pix-d_sph_in_pix)*I_no_tumor + d_sph_in_pix*I_tumor
     I_tumor_2D_pixel = I_tumor_2D_pixel / hight_of_pixel_in_pix
@@ -95,7 +97,6 @@ def for_all_photons(I_ref, I_tumor, I_no_tumor,photon_start, photon_end):
         phi_no_tumor, mean_no_tumor = estimate_phi_mean_fourier(I_ref_noisy, I_no_tumor_noisy)
 
         total_phi_no_tumor, total_phi_tumor = compute_total_phase(phi_tumor,phi_no_tumor)
-
         phi_tumor_results.append(phi_tumor)
         phi_no_tumor_results.append(phi_no_tumor)
 
@@ -105,7 +106,7 @@ def for_all_photons(I_ref, I_tumor, I_no_tumor,photon_start, photon_end):
         total_phi_no_tumor_results.append(total_phi_no_tumor)
         total_phi_tumor_results.append(total_phi_tumor)
 
-    return phi_tumor_results, phi_no_tumor_results, mean_tumor_results, mean_no_tumor_results, total_phi_tumor_results, total_phi_no_tumor_results
+    return np.array(phi_tumor_results), np.array(phi_no_tumor_results), np.array(mean_tumor_results), np.array(mean_no_tumor_results), np.array(total_phi_tumor_results), np.array(total_phi_no_tumor_results)
 
 def calculate_cnr(tumor, no_tumor, d_sph):
     """
@@ -172,15 +173,15 @@ def calculate_cnr_alter(tumor, no_tumor, d_sph):
 
 all_cnr_results = []
 
-for i in range(50):
+for i in range(5):
 
     phi_tumor_results, phi_no_tumor_results, mean_tumor_results, mean_no_tumor_results, total_phi_tumor_results, total_phi_no_tumor_results = for_all_photons(I_ref, I_tumor, I_no_tumor, photon_start=3, photon_end=10)
-    print("phi tumor shape", np.array(phi_tumor_results).shape)
-    cnr = calculate_cnr_whole_array(np.array(total_phi_tumor_results), np.array(total_phi_no_tumor_results), d_sph)
-    print(f"CNR for total phase: {cnr}")
+    #print("phi tumor shape", np.array(phi_tumor_results).shape)
+    cnr = calculate_cnr_whole_array(total_phi_tumor_results, total_phi_no_tumor_results, d_sph)
+    #print(f"CNR for total phase: {cnr}")
     all_cnr_results.append(cnr)
-    print("all_cnr_results shape:", np.array(all_cnr_results).shape)
-    mean_cnr_results = np.mean(all_cnr_results, axis=0)
+print("all_cnr_results shape:", np.array(all_cnr_results).shape)
+mean_cnr_results = np.mean(np.array(all_cnr_results), axis=0)
 print(f"Mean CNR across iterations: {mean_cnr_results}")
 """
 # Calculate mean CNR across iterations
