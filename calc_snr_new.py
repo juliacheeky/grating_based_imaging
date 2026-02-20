@@ -35,8 +35,27 @@ def compute_intensity_2D_pixels(I_ref, I_tumor, I_no_tumor, d_sph_um):
     I_no_tumor_2D_pixel = I_no_tumor
     return I_ref_2D_pixel, I_tumor_2D_pixel, I_no_tumor_2D_pixel
 
+def estimate_phi_mean_fourier_array(Iref, Isamp):
+        N = Iref.shape[-1]
+        Iref_reshape = Iref.reshape(...,int(N/segment_size_in_pix), segment_size_in_pix)
+        Isamp_reshape = Isamp.reshape(...,int(N/segment_size_in_pix), segment_size_in_pix)
+        
+        fourier_Isamp = np.fft.fft(Isamp_reshape, axis=-1)
+        fourier_Iref = np.fft.fft(Iref_reshape, axis=-1)
+        k = int(N / (px_in_um*1e-6 / detector_pixel_size))
+        
+        mean_samp = fourier_Isamp[...,0].real / N
+        phase_samp = np.angle(fourier_Isamp[...,k])
+        phase_ref = np.angle(fourier_Iref[...,k])
+        mean_ref = fourier_Iref[...,0].real / N
+
+        means = mean_samp/mean_ref
+
+        phis = phase_samp - phase_ref
+        return phis, means
+
+
 def estimate_phi_mean_fourier(Iref, Isamp):
-        omega = 2 * np.pi / (px_in_um*1e-6 / detector_pixel_size)
         x_walk = np.arange(len(Iref))
         
         centers = []
@@ -54,11 +73,11 @@ def estimate_phi_mean_fourier(Iref, Isamp):
             k = int(N / (px_in_um*1e-6 / detector_pixel_size))
 
             mean_samp = fourier_Isamp[0].real / N
-            amp_samp = 2 * np.abs(fourier_Isamp[k]) / N
+            #amp_samp = 2 * np.abs(fourier_Isamp[k]) / N
             phase_samp = np.angle(fourier_Isamp[k])
 
             mean_ref = fourier_Iref[0].real / N
-            amp_ref = 2 * np.abs(fourier_Iref[k]) / N
+            #amp_ref = 2 * np.abs(fourier_Iref[k]) / N
             phase_ref = np.angle(fourier_Iref[k])
 
             mean_list.append(mean_samp/mean_ref)
