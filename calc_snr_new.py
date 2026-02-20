@@ -36,6 +36,8 @@ def compute_intensity_2D_pixels(I_ref, I_tumor, I_no_tumor, d_sph_um):
     return I_ref_2D_pixel, I_tumor_2D_pixel, I_no_tumor_2D_pixel
 
 def estimate_phi_mean_fourier_array(Iref, Isamp):
+        # Will only work like this if the segment size goes evenly into the total length of the array,
+        #  which is the case for our data
         N = Iref.shape[-1]
         Iref_reshape = Iref.reshape(...,int(N/segment_size_in_pix), segment_size_in_pix)
         Isamp_reshape = Isamp.reshape(...,int(N/segment_size_in_pix), segment_size_in_pix)
@@ -50,8 +52,8 @@ def estimate_phi_mean_fourier_array(Iref, Isamp):
         mean_ref = fourier_Iref[...,0].real / N
 
         means = mean_samp/mean_ref
-
         phis = phase_samp - phase_ref
+
         return phis, means
 
 
@@ -87,11 +89,27 @@ def estimate_phi_mean_fourier(Iref, Isamp):
         return np.array(phi_list), np.array(mean_list)
 
 def compute_total_phase(phi_tumor,phi_no_tumor):
-    phi_tumor = np.asarray(phi_tumor)
-    phi_no_tumor = np.asarray(phi_no_tumor)
-    total_phi_tumor = np.cumsum(phi_tumor)
-    total_phi_no_tumor = np.cumsum(phi_no_tumor)
+    total_phi_tumor = np.cumsum(phi_tumor, axis=-1)
+    total_phi_no_tumor = np.cumsum(phi_no_tumor, axis=-1)
     return total_phi_no_tumor, total_phi_tumor
+
+def for_all_photons_new(I_ref, I_tumor, I_no_tumor,photon_start, photon_end, num_noise_realizations):
+
+    photons = np.logspace(photon_start, photon_end, num=10, base=10.0, dtype=int)[:,np.newaxis]
+
+
+    I_ref_noisy = np.random.poisson(np.broadcast_to(I_ref*photons, (num_noise_realizations,... )))
+    I_tumor_noisy = np.random.poisson(np.broadcast_to(I_tumor*photons, (num_noise_realizations,... )))
+    I_no_tumor_noisy = np.random.poisson(np.broadcast_to(I_no_tumor*photons, (num_noise_realizations,... )))
+    
+    phi_tumor, mean_tumor = estimate_phi_mean_fourier_array(I_ref_noisy, I_tumor_noisy)
+    phi_no_tumor, mean_no_tumor = estimate_phi_mean_fourier_array(I_ref_noisy, I_no_tumor_noisy)
+
+    total_phi_tumor = np.cumsum(phi_tumor, axis=-1)
+    total_phi_no_tumor = np.cumsum(phi_no_tumor, axis=-1)
+
+    return phi_tumor, phi_no_tumor, mean_tumor, mean_no_tumor, total_phi_tumor, total_phi_no_tumor
+
 
 #Returns lists of phi, total phi and mean values for both tumor and no tumor cases for a range of photon counts
 def for_all_photons(I_ref, I_tumor, I_no_tumor,photon_start, photon_end):
