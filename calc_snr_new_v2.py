@@ -42,16 +42,13 @@ def estimate_phi_mean_fourier_array(Iref, Isamp):
         shape = Iref.shape
         N = shape[-1]
 
-        
-        print("N", segment_size_in_pix)
         Iref_reshape = Iref.reshape(shape[0],shape[1],int(N/segment_size_in_pix), segment_size_in_pix)
         Isamp_reshape = Isamp.reshape(shape[0],shape[1],int(N/segment_size_in_pix), segment_size_in_pix)
         
         fourier_Isamp = np.fft.fft(Isamp_reshape, axis=-1)
         fourier_Iref = np.fft.fft(Iref_reshape, axis=-1)
-        print("fourier shape", fourier_Isamp.shape)
+
         k = int(segment_size_in_pix / (px_in_um*1e-6 / detector_pixel_size))
-        print("k", k)
         
         mean_samp = fourier_Isamp[...,0].real / segment_size_in_pix
         phase_samp = np.angle(fourier_Isamp[...,k])
@@ -79,21 +76,11 @@ def for_all_photons_new(I_ref, I_tumor, I_no_tumor,photons, num_noise_realizatio
     'phi_tumor dimention: (num_noise_realisations, num_photon_levels, num_segments)'
     return phi_tumor, phi_no_tumor, mean_tumor, mean_no_tumor, total_phi_tumor, total_phi_no_tumor
 
-def calculate_cnr_whole_array(tumor, no_tumor, d_sph):
-
-    d_sph_in_segs = 40 #d_sph / segment_size_in_pix
- 
-    arr_len = no_tumor.shape[-1]
-    start_idx = int((arr_len - d_sph_in_segs) / 2)
-    end_idx = int(start_idx + d_sph_in_segs)
+def calculate_cnr_whole_array(tumor, no_tumor):
     
-    tumor_central = tumor[..., start_idx:end_idx]
-    no_tumor_central = no_tumor[..., start_idx:end_idx]
-    
-    signal = np.abs(np.mean(tumor_central, axis=-1) - np.mean(no_tumor_central, axis=-1))
+    signal = np.abs(np.mean(tumor, axis=-1) - np.mean(no_tumor, axis=-1))
     print(f"Signal: {signal.shape}")
-    noise = np.std(no_tumor_central, axis=-1, ddof=1)
-    print(f"Noise: {noise}")
+    noise = np.std(no_tumor, axis=-1, ddof=1)
     cnr = signal / noise
     return cnr
 
@@ -106,21 +93,34 @@ photons = np.logspace(photon_start, photon_end, num=40, base=10.0, dtype=int)
 
 def process(input_file, output_file, phi):
     Intensities = pd.read_csv(input_file)
-    I_ref = Intensities["I_ref"].to_numpy()
-    I_no_tumor = Intensities["I_no_tumor"].to_numpy()
-    I_no_tumor = I_no_tumor * np.exp(-mu_bkg_in_1_cm * additional_thickness_cm)
+
 
     for d_sph in d_sphss:
+        
+        I_ref = Intensities["I_ref"].to_numpy()
+
+        d_sph_in_pix = int(round((d_sph+10)*1e-6 / detector_pixel_size))
+        print("sphere diameter in pix",d_sph_in_pix)
+        arr_len = len(I_ref)
+        start_idx = int((arr_len - d_sph_in_pix) / 2)
+        end_idx = int(start_idx + d_sph_in_pix)
+
+        I_no_tumor = Intensities["I_no_tumor"].to_numpy()
+        I_no_tumor = I_no_tumor * np.exp(-mu_bkg_in_1_cm * additional_thickness_cm)
 
         col_name = f"{int(round(d_sph))}um"
         I_tumor = Intensities[col_name].to_numpy()
         I_tumor = I_tumor * np.exp(-mu_bkg_in_1_cm * additional_thickness_cm)
-        
+
+        I_tumor = I_tumor[start_idx:end_idx]
+        I_no_tumor = I_no_tumor[start_idx:end_idx]
+        I_ref = I_ref[start_idx:end_idx]
+
         #I_ref_2D, I_tumor_2D, I_no_tumor_2D = compute_intensity_2D_pixels(I_ref, I_tumor, I_no_tumor, d_sph)
         phi_tumor_results, phi_no_tumor_results, mean_tumor_results, mean_no_tumor_results, total_phi_tumor_results, total_phi_no_tumor_results = \
             for_all_photons_new(I_ref, I_tumor, I_no_tumor, photons, num_noise_realizations=100)
-        cnr = calculate_cnr_whole_array(total_phi_tumor_results, total_phi_no_tumor_results, d_sph) \
-                if phi else calculate_cnr_whole_array(mean_tumor_results, mean_no_tumor_results, d_sph)
+        cnr = calculate_cnr_whole_array(total_phi_tumor_results, total_phi_no_tumor_results) \
+                if phi else calculate_cnr_whole_array(mean_tumor_results, mean_no_tumor_results)
         mean_cnr = np.mean(cnr, axis=0) # dimensions (photons)
 
         if not os.path.exists(output_file):
