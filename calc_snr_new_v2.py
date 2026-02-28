@@ -3,23 +3,27 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import os
 from parameter import *
+import scipy.ndimage as nd
+
+from varying_convolve import FWHM_PSF_in_pix
 
 hight_of_pixel_in_um = 217
 hight_of_pixel_in_pix = int(hight_of_pixel_in_um*1e-6 / detector_pixel_size)
 file_name = "cnr_results.csv"
 
-additional_thickness_cm = 11.85
+additional_thickness_cm = 11.95
 mu_bkg_in_1_cm = xrl.CS_Total_CP(mat_bkg, E_in_keV) * rho_bkg_in_g_cm3
 
 #data_phi  = "intensity_tumor_background_60keV_all_sizes_talbot3_large_sizes.csv"
 #data_absorb = "intensity_tumor_background_60keV_all_sizes_talbot3_large_sizes_onlyabsorb.csv"
+#data_phi = "intensity_tumor_background_30keV_40-1000_talbot3_phi.csv"
 
-#data_phi  = "intensity_tumor_background_30keV_40-200_talbot3_phi.csv"
-#data_absorb = "intensity_tumor_background_30keV_40-200_talbot3_only_absorb.csv"
+data_phi  = "intensity_tumor_background_30keV_40-200_talbot3_phi.csv"
+data_absorb = "intensity_tumor_background_30keV_40-200_talbot3_only_absorb.csv"
 
 #data_phi = "intensity_tumor_background_30keV_200-1000_talbot3_phi.csv"
-data_phi = "intensity_tumor_background_60keV_40-1000_talbot3_phi.csv"
-data_absorb = "intensity_tumor_background_30keV_200-1000_talbot3_only_absorb.csv"
+#data_phi = "intensity_tumor_background_60keV_40-1000_talbot3_phi.csv"
+#data_absorb = "intensity_tumor_background_30keV_200-1000_talbot3_only_absorb.csv"
 
 #data_phi = "intensity_tumor_background_60keV_200-1000_talbot3_with_phase.csv"
 #data_absorb = "intensity_tumor_background_60keV_200-1000_talbot3_only_absorb.csv"
@@ -58,9 +62,10 @@ def estimate_phi_mean_fourier_array(Iref, Isamp):
         mean_ref = fourier_Iref[...,0].real / segment_size_in_pix
 
         means = mean_samp/mean_ref
+        mus = -np.log(means)
         phis = phase_samp - phase_ref
 
-        return phis, means
+        return phis, means, mus
 
 def for_all_photons_new(I_ref, I_tumor, I_no_tumor,photons, num_noise_realizations):
     photons_stacked = np.broadcast_to(photons[:, np.newaxis], (num_noise_realizations, len(photons), 1))
@@ -68,28 +73,35 @@ def for_all_photons_new(I_ref, I_tumor, I_no_tumor,photons, num_noise_realizatio
     I_tumor_noisy = np.random.poisson(I_tumor*photons_stacked)
     I_no_tumor_noisy = np.random.poisson(I_no_tumor*photons_stacked)
     
-    phi_tumor, mean_tumor = estimate_phi_mean_fourier_array(I_ref_noisy, I_tumor_noisy)
-    phi_no_tumor, mean_no_tumor = estimate_phi_mean_fourier_array(I_ref_noisy, I_no_tumor_noisy)
+    phi_tumor, mean_tumor, mu_tumor = estimate_phi_mean_fourier_array(I_ref_noisy, I_tumor_noisy)
+    phi_no_tumor, mean_no_tumor, mu_no_tumor = estimate_phi_mean_fourier_array(I_ref_noisy, I_no_tumor_noisy)
 
-    total_phi_tumor = np.cumsum(phi_tumor[:,:,1:-1], axis=-1)
-    total_phi_no_tumor = np.cumsum(phi_no_tumor[:,:,1:-1], axis=-1)
+    total_phi_tumor = np.cumsum(phi_tumor, axis=-1)
+    total_phi_no_tumor = np.cumsum(phi_no_tumor, axis=-1)
     'phi_tumor dimention: (num_noise_realisations, num_photon_levels, num_segments)'
-    return phi_tumor, phi_no_tumor, mean_tumor, mean_no_tumor, total_phi_tumor, total_phi_no_tumor
+    return phi_tumor, phi_no_tumor, mean_tumor, mean_no_tumor, total_phi_tumor, total_phi_no_tumor, mu_tumor, mu_no_tumor
 
-def calculate_cnr_whole_array(tumor, no_tumor):
+def calculate_cnr_whole_array(tumor, no_tumor,ref):
     
     signal = np.abs(np.mean(tumor, axis=-1) - np.mean(no_tumor, axis=-1))
     print(f"Signal: {signal.shape}")
-    noise = np.std(no_tumor, axis=-1, ddof=1)
+    noise = np.std(no_tumor, axis=(0,-1), ddof=1)
     cnr = signal / noise
     return cnr
 
-#d_sphss = [40,50,60,70,80,90,100,110,120,130,140,150,160,170,180,190,200]
+d_sphss = [40,50,60,70,80,90,100,110,120,130,140,150,160,170,180,190,200]
 #d_sphss = [200, 300, 400, 500, 600, 700, 800, 900, 1000]
-d_sphss = [40,50,60,70,80,90,100,110,120,130,140,150,160,170,180,190,200, 300, 400, 500, 600, 700, 800, 900, 1000]
-photon_start = 2
-photon_end = 8
+#d_sphss = [40,50,60,70,80,90,100,110,120,130,140,150,160,170,180,190,200, 300, 400, 500, 600, 700, 800, 900, 1000]
+photon_start = 3
+photon_end = 10
 photons = np.logspace(photon_start, photon_end, num=40, base=10.0, dtype=int)
+
+def conv_PSF_det(FWHM_PSF_in_pix,img):
+
+    sigma = FWHM_PSF_in_pix / (2 * np.sqrt(2 * np.log(2)))  
+    conv_img_PSF = nd.gaussian_filter(img, sigma)     
+    
+    return conv_img_PSF
 
 def process(input_file, output_file, phi):
     Intensities = pd.read_csv(input_file)
@@ -116,11 +128,20 @@ def process(input_file, output_file, phi):
         I_no_tumor = I_no_tumor[start_idx:end_idx]
         I_ref = I_ref[start_idx:end_idx]
 
+        #FWHM_PSF_in_pix = 6
+        #I_ref_conv = conv_PSF_det(FWHM_PSF_in_pix, I_ref)
+        #I_tumor_conv = conv_PSF_det(FWHM_PSF_in_pix, I_tumor)
+        #I_no_tumor_conv = conv_PSF_det(FWHM_PSF_in_pix, I_no_tumor)
+        
         #I_ref_2D, I_tumor_2D, I_no_tumor_2D = compute_intensity_2D_pixels(I_ref, I_tumor, I_no_tumor, d_sph)
+        """
         phi_tumor_results, phi_no_tumor_results, mean_tumor_results, mean_no_tumor_results, total_phi_tumor_results, total_phi_no_tumor_results = \
             for_all_photons_new(I_ref, I_tumor, I_no_tumor, photons, num_noise_realizations=100)
+        """
+        phi_tumor_results, phi_no_tumor_results, mean_tumor_results, mean_no_tumor_results, total_phi_tumor_results, total_phi_no_tumor_results, mu_tumor_results, mu_no_tumor_results = \
+            for_all_photons_new(I_ref, I_tumor, I_no_tumor, photons, num_noise_realizations=100)
         cnr = calculate_cnr_whole_array(total_phi_tumor_results, total_phi_no_tumor_results) \
-                if phi else calculate_cnr_whole_array(mean_tumor_results, mean_no_tumor_results)
+                if phi else calculate_cnr_whole_array(mu_tumor_results, mu_no_tumor_results)
         mean_cnr = np.mean(cnr, axis=0) # dimensions (photons)
 
         if not os.path.exists(output_file):
@@ -139,5 +160,5 @@ def process(input_file, output_file, phi):
             
             results.to_csv(output_file, index=False)
 
-process(data_phi, "cnr_phi_40-1000_60keV.csv", True)
-#process(data_absorb, "cnr_absorb_200-1000_30keV.csv", False)
+#process(data_phi, "cnr_phi_40-200_30keV_fwhm=6.csv", True)
+process(data_absorb, "cnr_absorb_40-200_30keV_mu.csv", False)
